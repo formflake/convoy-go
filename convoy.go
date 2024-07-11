@@ -104,11 +104,9 @@ type Webhook struct {
 	Headers map[string][]string
 }
 
-type EventType string
-
 type WebhookData struct {
 	Data       interface{} `json:"data"`
-	EventType  EventType   `json:"event_type"`
+	EventType  string      `json:"event_type"`
 	EndpointID string      `json:"endpoint_id"`
 }
 
