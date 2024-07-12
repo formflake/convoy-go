@@ -22,6 +22,10 @@ type WebhookInterface interface {
 }
 
 type webhookService struct {
+	WebhookInterface
+}
+
+type webhookData struct {
 	url string
 	key string
 }
@@ -30,8 +34,10 @@ var _ WebhookInterface = &webhookService{}
 
 func NewWebhook(url, key, defaultProject string) *webhookService {
 	return &webhookService{
-		url: url,
-		key: key,
+		&webhookData{
+			url: url,
+			key: key,
+		},
 	}
 }
 
@@ -110,7 +116,7 @@ type WebhookData struct {
 	EndpointID string      `json:"endpoint_id"`
 }
 
-func (we *webhookService) TogglePause(projectID, endpointID string) (string, error) {
+func (we *webhookData) TogglePause(projectID, endpointID string) (string, error) {
 	req, err := http.NewRequest(
 		http.MethodPut,
 		fmt.Sprint(we.url, "/api/v1/projects/", projectID, "/endpoints/", endpointID, "/pause"),
@@ -146,7 +152,7 @@ func (we *webhookService) TogglePause(projectID, endpointID string) (string, err
 	return endpoint.Data.Status, nil
 }
 
-func (we *webhookService) CreateEndpoint(projectID string, params UpsertEndpointParams) (*CreateEndpointResponse, error) {
+func (we *webhookData) CreateEndpoint(projectID string, params UpsertEndpointParams) (*CreateEndpointResponse, error) {
 	buff := new(bytes.Buffer)
 	err := json.NewEncoder(buff).Encode(params)
 	if err != nil {
@@ -189,7 +195,7 @@ func (we *webhookService) CreateEndpoint(projectID string, params UpsertEndpoint
 	return &response, nil
 }
 
-func (we *webhookService) UpdateEndpoint(projectID, endpointID string, params UpsertEndpointParams) (*EndpointResponse, error) {
+func (we *webhookData) UpdateEndpoint(projectID, endpointID string, params UpsertEndpointParams) (*EndpointResponse, error) {
 	buff := new(bytes.Buffer)
 	err := json.NewEncoder(buff).Encode(params)
 	if err != nil {
@@ -232,7 +238,7 @@ func (we *webhookService) UpdateEndpoint(projectID, endpointID string, params Up
 	return &response, nil
 }
 
-func (we *webhookService) DeleteEndpoint(projectID, endpointID string) (*EndpointResponse, error) {
+func (we *webhookData) DeleteEndpoint(projectID, endpointID string) (*EndpointResponse, error) {
 	req, err := http.NewRequest(
 		http.MethodDelete,
 		fmt.Sprint(we.url, "/api/v1/projects/", projectID, "/endpoints/", endpointID),
@@ -268,7 +274,7 @@ func (we *webhookService) DeleteEndpoint(projectID, endpointID string) (*Endpoin
 	return &endpoint, nil
 }
 
-func (we *webhookService) GetEndpoint(projectID, endpointID string) (*Endpoint, error) {
+func (we *webhookData) GetEndpoint(projectID, endpointID string) (*Endpoint, error) {
 	req, err := http.NewRequest(
 		http.MethodGet,
 		fmt.Sprint(we.url, "/api/v1/projects/", projectID, "/endpoints/", endpointID),
@@ -304,7 +310,7 @@ func (we *webhookService) GetEndpoint(projectID, endpointID string) (*Endpoint, 
 	return &endpoint, nil
 }
 
-func (we *webhookService) CreateEvent(projectID string, webhookData *Webhook) error {
+func (we *webhookData) CreateEvent(projectID string, webhookData *Webhook) error {
 	if webhookData == nil {
 		return errors.New("webhook data undefined")
 	}
