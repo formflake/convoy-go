@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 )
@@ -19,6 +20,7 @@ type WebhookInterface interface {
 	DeleteEndpoint(projectID, endpointID string) (*EndpointResponse, error)
 	TogglePause(projectID, endpointID string) (string, error)
 	CreateEvent(projectID string, webhookData *Webhook) error
+	GetEndpointEventDeliveries(projectID, endpointID string, itemsPerPage int64) (*EventDelivery, error)
 }
 
 type webhookService struct {
@@ -116,6 +118,68 @@ type WebhookData struct {
 	EndpointID string      `json:"endpoint_id"`
 }
 
+type EventDelivery struct {
+	Message string `json:"message"`
+	Status  bool   `json:"status"`
+	Data    struct {
+		Content []EventDeliveryContent `json:"content"`
+	} `json:"data"`
+}
+
+type EventDeliveryContent struct {
+	CreatedAt time.Time `json:"created_at"`
+	// EventID       string    `json:"event_id"`
+	Status        string `json:"status"`
+	EventMetadata struct {
+		EventType string `json:"event_type"`
+	} `json:"event_metadata"`
+	Metadata struct {
+		NumTrials  int64 `json:"num_trials"`
+		RetryLimit int64 `json:"retry_limit"`
+	} `json:"metadata"`
+}
+
+func (we *webhookData) GetEndpointEventDeliveries(projectID, endpointID string, itemsPerPage int64) (*EventDelivery, error) {
+	req, err := http.NewRequest(
+		http.MethodGet,
+		fmt.Sprint(we.url, "/api/v1/projects/", projectID, "/eventdeliveries"),
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", fmt.Sprint("Bearer ", we.key))
+	query := url.Values{
+		"endpointId": []string{endpointID},
+		"perPage":    []string{strconv.FormatInt(itemsPerPage, 10)},
+	}
+	req.URL.RawQuery = query.Encode()
+
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func(Body io.ReadCloser) {
+		if err := Body.Close(); err != nil {
+			slog.Error("error closing response body", "err", err)
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("response code %d invalid", resp.StatusCode)
+	}
+
+	var delivery EventDelivery
+	if err := json.NewDecoder(resp.Body).Decode(&delivery); err != nil {
+		return nil, err
+	}
+
+	return &delivery, nil
+}
+
 func (we *webhookData) TogglePause(projectID, endpointID string) (string, error) {
 	req, err := http.NewRequest(
 		http.MethodPut,
@@ -134,15 +198,14 @@ func (we *webhookData) TogglePause(projectID, endpointID string) (string, error)
 	if err != nil {
 		return "", err
 	}
-	if resp.StatusCode >= 300 {
-		return "", fmt.Errorf("response code %d invalid", resp.StatusCode)
-	}
-
 	defer func(Body io.ReadCloser) {
 		if err := Body.Close(); err != nil {
 			slog.Error("error closing response body", "err", err)
 		}
 	}(resp.Body)
+	if resp.StatusCode >= 300 {
+		return "", fmt.Errorf("response code %d invalid", resp.StatusCode)
+	}
 
 	var endpoint EndpointToggleStatus
 	if err := json.NewDecoder(resp.Body).Decode(&endpoint); err != nil {
@@ -177,15 +240,14 @@ func (we *webhookData) CreateEndpoint(projectID string, params UpsertEndpointPar
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode > http.StatusBadRequest {
-		return nil, fmt.Errorf("response code %d invalid", resp.StatusCode)
-	}
-
 	defer func(Body io.ReadCloser) {
 		if err := Body.Close(); err != nil {
 			slog.Error("error closing response body", "err", err)
 		}
 	}(resp.Body)
+	if resp.StatusCode > http.StatusBadRequest {
+		return nil, fmt.Errorf("response code %d invalid", resp.StatusCode)
+	}
 
 	var response CreateEndpointResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
@@ -220,15 +282,14 @@ func (we *webhookData) UpdateEndpoint(projectID, endpointID string, params Upser
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode > http.StatusBadRequest {
-		return nil, fmt.Errorf("response code %d invalid", resp.StatusCode)
-	}
-
 	defer func(Body io.ReadCloser) {
 		if err := Body.Close(); err != nil {
 			slog.Error("error closing response body", "err", err)
 		}
 	}(resp.Body)
+	if resp.StatusCode > http.StatusBadRequest {
+		return nil, fmt.Errorf("response code %d invalid", resp.StatusCode)
+	}
 
 	var response EndpointResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
@@ -256,15 +317,14 @@ func (we *webhookData) DeleteEndpoint(projectID, endpointID string) (*EndpointRe
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("response code %d invalid", resp.StatusCode)
-	}
-
 	defer func(Body io.ReadCloser) {
 		if err := Body.Close(); err != nil {
 			slog.Error("error closing response body", "err", err)
 		}
 	}(resp.Body)
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("response code %d invalid", resp.StatusCode)
+	}
 
 	var endpoint EndpointResponse
 	if err := json.NewDecoder(resp.Body).Decode(&endpoint); err != nil {
@@ -292,15 +352,14 @@ func (we *webhookData) GetEndpoint(projectID, endpointID string) (*Endpoint, err
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("response code %d invalid", resp.StatusCode)
-	}
-
 	defer func(Body io.ReadCloser) {
 		if err := Body.Close(); err != nil {
 			slog.Error("error closing response body", "err", err)
 		}
 	}(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("response code %d invalid", resp.StatusCode)
+	}
 
 	var endpoint Endpoint
 	if err := json.NewDecoder(resp.Body).Decode(&endpoint); err != nil {
