@@ -113,9 +113,10 @@ type Webhook struct {
 }
 
 type WebhookData struct {
-	Data       interface{} `json:"data"`
-	EventType  string      `json:"event_type"`
-	EndpointID string      `json:"endpoint_id"`
+	Data           interface{} `json:"data"`
+	EventType      string      `json:"event_type"`
+	EndpointID     string      `json:"endpoint_id"`
+	IdempotencyKey string      `json:"idempotency_key"`
 }
 
 type EventDelivery struct {
